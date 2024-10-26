@@ -25,6 +25,7 @@ export default defineConfig({
         v3_singleFetch: true,
         v3_lazyRouteDiscovery: true,
       },
+      serverModuleFormat: "esm",
     }),
     tsconfigPaths(),
   ],
@@ -32,6 +33,19 @@ export default defineConfig({
     alias: {
       "@": path.resolve(__dirname, "./app"),
       "~": path.resolve(__dirname, "./app")
+    }
+  },
+  optimizeDeps: {
+    include: ['lottie-react'],
+  },
+  build: {
+    rollupOptions: {
+      external: ['fsevents'],
+    },
+  },
+  server: {
+    fs: {
+      strict: false
     }
   }
 });

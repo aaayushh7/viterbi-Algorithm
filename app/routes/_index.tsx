@@ -1,6 +1,6 @@
 import { json, type ActionFunctionArgs } from "@remix-run/node";
 import { useActionData, useNavigation, Form, useSubmit } from "@remix-run/react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import { 
@@ -13,6 +13,98 @@ import { ArrowRight, Brain, RefreshCw, Trash2, HelpCircle } from "lucide-react";
 import { observations } from "../types/viterbi.types";
 import { computeViterbi } from "../utils/viterbi.server";
 import { ViterbiExplanation } from "~/components/ViterbiExplanation";
+import type { LottieRefCurrentProps } from "lottie-react";
+
+// Create a client-side only wrapper for Lottie
+const LottieWrapper = ({ animationData }: { animationData: any }) => {
+  const [LottieComponent, setLottieComponent] = useState<any>(null);
+  const lottieRef = useRef<LottieRefCurrentProps>(null);
+
+  useEffect(() => {
+    // Dynamically import Lottie only on the client side
+    import('lottie-react').then((module) => {
+      setLottieComponent(() => module.default);
+    });
+  }, []);
+
+  if (!LottieComponent) {
+    return <div className="w-64 h-64 animate-pulse bg-slate-700 rounded-full" />;
+  }
+
+  return (
+    <LottieComponent
+      lottieRef={lottieRef}
+      animationData={animationData}
+      loop={true}
+      autoplay={true}
+      style={{ width: 256, height: 256 }}
+      rendererSettings={{
+        preserveAspectRatio: 'xMidYMid slice'
+      }}
+    />
+  );
+};
+
+function useAnimationData() {
+  const [animationData, setAnimationData] = useState<any>(null);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function loadAnimation() {
+      try {
+        const animationModule = await import('../assets/animation.json');
+        setAnimationData(animationModule.default);
+      } catch (err) {
+        console.error('Failed to load animation:', err);
+        setError(err as Error);
+      }
+    }
+
+    loadAnimation();
+  }, []);
+
+  return { animationData, error };
+}
+
+function LottieAnimation() {
+  const { animationData, error } = useAnimationData();
+
+  if (error) {
+    console.error('Animation error:', error);
+    return <div className="w-64 h-64 animate-pulse bg-slate-700 rounded-full" />;
+  }
+
+  if (!animationData) {
+    return <div className="w-64 h-64 animate-pulse bg-slate-700 rounded-full" />;
+  }
+
+  return <LottieWrapper animationData={animationData} />;
+}
+
+// ClientOnly component remains the same
+function ClientOnly({ children, fallback = null }) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  return mounted ? children : fallback;
+}
+
+const LoadingScreen = () => {
+  return (
+    <div className="fixed inset-0 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center z-50">
+      <div className="w-64 h-64">
+        <ClientOnly fallback={
+          <div className="w-64 h-64 animate-pulse bg-slate-700 rounded-full" />
+        }>
+          <LottieAnimation />
+        </ClientOnly>
+      </div>
+    </div>
+  );
+};
 
 interface ActionData {
   sequence: string[];
@@ -92,12 +184,21 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 
 export default function Index() {
+  const [isLoading, setIsLoading] = useState(true);
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const submit = useSubmit();
   const [localSequence, setLocalSequence] = useState<string[]>([]);
   
   const isProcessing = navigation.state === "submitting";
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   const addWord = useCallback((word: string) => {
     setLocalSequence(prev => [...prev, word]);
@@ -138,6 +239,10 @@ export default function Index() {
   );
 
   return (
+    <>
+      {isLoading ? (
+        <LoadingScreen />
+      ) : (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white p-4 md:p-8 animate-gradient-x">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header Card */}
@@ -290,5 +395,7 @@ export default function Index() {
             />
           </div>
     </div>
+     )}
+     </>
   );
 }
